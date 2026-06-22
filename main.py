@@ -13,6 +13,7 @@ from logger import logger
 from worker import run_worker
 from routers.health import router as health_router
 from routers.tasks import router as tasks_router
+from routers.canary import router as canary_router
 
 worker_task = None
 
@@ -45,6 +46,7 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(tasks_router)
+app.include_router(canary_router)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host=settings.host, port=settings.port, reload=True)
