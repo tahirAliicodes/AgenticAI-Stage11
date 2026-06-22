@@ -1,0 +1,127 @@
+<!-- userInterface.html -->
+<!-- Stage11/userInterface.html -->
+<!-- Production dashboard for submitting tasks and checking health -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Stage 11 — Production Dashboard</title>
+  <style>
+    body { font-family: monospace; background: #0a0d12; color: #c9d1dc; padding: 40px; }
+    h1 { color: #00d4ff; margin-bottom: 30px; }
+    .card { background: #0f1318; border: 1px solid #1e2530; padding: 20px; margin-bottom: 20px; border-radius: 4px; }
+    input { background: #151a22; border: 1px solid #1e2530; color: #eef2f7; padding: 8px 12px; width: 300px; border-radius: 3px; }
+    button { background: #00d4ff; color: #0a0d12; border: none; padding: 8px 20px; cursor: pointer; border-radius: 3px; font-weight: bold; margin-left: 10px; }
+    #log { background: #151a22; border: 1px solid #1e2530; padding: 16px; height: 200px; overflow-y: auto; border-radius: 3px; font-size: 12px; }
+    #resultBox { background: #151a22; border: 1px solid #1e2530; padding: 16px; border-radius: 3px; font-size: 13px; white-space: pre-wrap; min-height: 60px; margin-top: 12px; }
+    .ok { color: #22c55e; } .err { color: #ef4444; } .warn { color: #f59e0b; }
+    .status-queued { color: #00d4ff; }
+    .status-completed { color: #22c55e; }
+    .status-rejected { color: #ef4444; }
+    .status-failed { color: #ef4444; }
+  </style>
+</head>
+<body>
+  <h1>🚀 Stage 11 — Production Dashboard</h1>
+
+  <div class="card">
+    <h3>Submit Task</h3><br>
+    <input id="taskPayload" placeholder="Ask anything..." />
+    <button onclick="submitTask()">Submit</button>
+    <div id="statusLine" style="margin-top:12px; font-size:13px;"></div>
+    <div id="resultBox" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <h3>Health Checks</h3><br>
+    <button onclick="checkHealth('/health')">Health</button>
+    <button onclick="checkHealth('/ready')">Ready</button>
+    <button onclick="checkHealth('/live')">Live</button>
+    <button onclick="checkHealth('/tasks/queue')">Queue Size</button>
+  </div>
+
+  <div class="card">
+    <h3>Log</h3>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    const BASE = "http://localhost:8000";
+    let pollInterval = null;
+
+    function log(msg, cls = "ok") {
+      const div = document.getElementById("log");
+      const line = document.createElement("div");
+      line.className = cls;
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      div.appendChild(line);
+      div.scrollTop = div.scrollHeight;
+    }
+
+    function setStatus(text, cls) {
+      const el = document.getElementById("statusLine");
+      el.className = cls;
+      el.textContent = text;
+    }
+
+    async function submitTask() {
+      const payload = document.getElementById("taskPayload").value.trim();
+      if (!payload) return;
+
+      document.getElementById("resultBox").style.display = "none";
+      document.getElementById("resultBox").textContent = "";
+      if (pollInterval) clearInterval(pollInterval);
+
+      try {
+        const res = await fetch(`${BASE}/tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "research", payload: payload })
+        });
+        const data = await res.json();
+        log(`Task queued — id: ${data.id}`);
+        setStatus("⏳ Status: queued — waiting for result...", "status-queued");
+        pollInterval = setInterval(() => pollResult(data.id), 2000);
+      } catch (e) {
+        log(`Error: ${e.message}`, "err");
+      }
+    }
+
+    async function pollResult(taskId) {
+      try {
+        const res = await fetch(`${BASE}/tasks/${taskId}`);
+        const data = await res.json();
+
+        if (data.status === "completed") {
+          clearInterval(pollInterval);
+          setStatus("✅ Status: completed", "status-completed");
+          const box = document.getElementById("resultBox");
+          box.style.display = "block";
+          box.textContent = data.result;
+          log(`Task ${taskId} completed`);
+        } else if (data.status === "rejected") {
+          clearInterval(pollInterval);
+          setStatus("🚫 Status: rejected — inappropriate language", "status-rejected");
+          log(`Task ${taskId} rejected`, "err");
+        } else if (data.status === "failed") {
+          clearInterval(pollInterval);
+          setStatus("❌ Status: failed", "status-failed");
+          log(`Task ${taskId} failed`, "err");
+        }
+      } catch (e) {
+        log(`Poll error: ${e.message}`, "err");
+      }
+    }
+
+    async function checkHealth(path) {
+      try {
+        const res = await fetch(`${BASE}${path}`);
+        const data = await res.json();
+        log(`${path} → ${JSON.stringify(data)}`);
+      } catch (e) {
+        log(`${path} failed: ${e.message}`, "err");
+      }
+    }
+  </script>
+</body>
+</html>
