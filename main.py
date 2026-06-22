@@ -35,7 +35,12 @@ async def lifespan(app: FastAPI):
     logger.info("Shutdown complete")
 
 
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app = FastAPI(
+    title=settings.app_name,
+    lifespan=lifespan,
+    redoc_url=None,
+    docs_url="/docs"
+)
 
 app.add_middleware(
     CORSMiddleware,
